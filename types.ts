@@ -41,6 +41,7 @@ export interface Section {
   chartData?: { label: string; value: number }[];
   statistics?: string;
   imageScale?: number;
+  iconPosition?: { x: number; y: number };
 }
 
 export type SectionLayout = 'top' | 'bottom' | 'left' | 'right';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { polishText } from '../services/geminiService';
+import { polishText } from '../services/apiService';
 import { Section, WorkspaceSection, SavedProject, SectionLayout, ExtractedData } from '../types';
 import { getJournalColor } from '../utils/journalColors';
 import PptxGenJS from 'pptxgenjs';
@@ -25,6 +25,93 @@ const CANVAS_WIDTH = 1280;
 const CANVAS_HEIGHT = 720;
 const HEADER_HEIGHT = 150; // 60px color bar + 90px title area
 const FOOTER_HEIGHT = 30;
+
+// Helper function to map icon names to Material Symbols
+const mapIconNameToMaterialSymbol = (iconName: string): string => {
+    const iconMap: Record<string, string> = {
+        // Medical & Health
+        'stethoscope': 'stethoscope',
+        'heart': 'favorite',
+        'medical': 'medical_services',
+        'pill': 'medication',
+        'syringe': 'vaccines',
+        'hospital': 'local_hospital',
+        'ambulance': 'ambulance',
+        'microscope': 'biotech',
+        'dna': 'genetics',
+        'virus': 'coronavirus',
+        'bacteria': 'microbiology',
+        
+        // People & Groups
+        'people': 'groups',
+        'person': 'person',
+        'group': 'group',
+        'patient': 'patient_list',
+        'family': 'family_restroom',
+        'child': 'child_care',
+        
+        // Science & Research
+        'flask': 'science',
+        'test tube': 'lab_research',
+        'beaker': 'science',
+        'laboratory': 'science',
+        'research': 'lab_research',
+        'experiment': 'experiment',
+        
+        // Data & Analytics
+        'chart': 'analytics',
+        'graph': 'bar_chart',
+        'statistics': 'analytics',
+        'data': 'database',
+        'analytics': 'analytics',
+        'trends': 'trending_up',
+        
+        // Location & Buildings
+        'building': 'apartment',
+        'location': 'location_on',
+        'map': 'map',
+        'place': 'place',
+        
+        // Documents & Files
+        'document': 'description',
+        'file': 'insert_drive_file',
+        'folder': 'folder',
+        'report': 'assessment',
+        
+        // Time & Calendar
+        'calendar': 'calendar_today',
+        'clock': 'schedule',
+        'time': 'access_time',
+        'date': 'event',
+        
+        // Other common icons
+        'check': 'check_circle',
+        'warning': 'warning',
+        'info': 'info',
+        'settings': 'settings',
+        'filter': 'filter_alt',
+        'search': 'search',
+        'edit': 'edit',
+    };
+    
+    // Convert icon name to lowercase for matching
+    const lowerName = iconName.toLowerCase();
+    
+    // Try exact match first
+    if (iconMap[lowerName]) {
+        return iconMap[lowerName];
+    }
+    
+    // Try partial match
+    for (const [key, value] of Object.entries(iconMap)) {
+        if (lowerName.includes(key) || key.includes(lowerName)) {
+            return value;
+        }
+    }
+    
+    // Default fallback
+    return 'category';
+};
 
 // Helper to get the correct API key source
 const processImageForPPTX = async (url: string): Promise<string> => {
@@ -76,7 +163,7 @@ const LAYOUT_TEMPLATES: Record<string, LayoutTemplate> = {
                 id: 'population',
                 title: 'POPULATION',
                 content: '40 Children with history of peanut reaction undergoing oral food challenge (OFC). Mean age, 31.8 mos.',
-                icon: 'groups', // Material Symbol
+                icon: 'group', // Hasta grubu için
                 rect: { x: 50, y: 160, w: 380, h: 255 },
                 layout: 'right'
             },
@@ -84,14 +171,14 @@ const LAYOUT_TEMPLATES: Record<string, LayoutTemplate> = {
                 id: 'intervention',
                 title: 'INTERVENTION',
                 content: 'Peanut OFC with stopping rules based on a 1 g/m²/h rise in TEWL plus one objective symptom.',
-                icon: 'cardiology', // Material Symbol
+                icon: 'healing', // Müdahale/tedavi için
                 rect: { x: 450, y: 160, w: 380, h: 255 }
             },
             {
                 id: 'findings',
                 title: 'FINDINGS',
                 content: 'The TEWL group had significantly lower rates of anaphylaxis compared with the control group (P=.02).',
-                icon: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCs1U5LZXNuYJQvgDABxio2bIZt-pbrev5F4ez7Ls8afQoVXK5-_uQeFPrZA3RZ9Oddj_Vveut5Gpt5z4dKne1jI8LYPnOuwfkqfUxJRce0MJY648lmaiWoocYnY-CewB8jQP8qIEoV7SHq94M4ZiGosfzxfhIdWS7n7-0m0DNRYBmrnDEYVu96ZQpivEYB88X7IMFhVoQneMNIrtaqX4GI7O-fyCkF2Y8uTC3FEq_-_QhWasG7t2Poz9xEc-oZyP91ToTTNRIw838', // Bar chart placeholder
+                icon: 'bar_chart', // Bulgular/sonuçlar için
                 rect: { x: 850, y: 160, w: 380, h: 530 },
                 imageScale: 1.1,
                 layout: 'bottom'
@@ -100,13 +187,14 @@ const LAYOUT_TEMPLATES: Record<string, LayoutTemplate> = {
                 id: 'settings',
                 title: 'SETTINGS / LOCATIONS',
                 content: '1 Academic medical center',
-                icon: 'apartment', // Material Symbol
+                icon: 'domain', // Lokasyon/kurum için
                 rect: { x: 50, y: 435, w: 380, h: 255 }
             },
             {
                 id: 'outcome',
                 title: 'PRIMARY OUTCOME',
                 content: 'Anaphylaxis rate defined as a Consortium of Food Allergy Research (CoFAR) score ≥2.',
+                icon: 'target', // Birincil sonuç için
                 rect: { x: 450, y: 435, w: 380, h: 255 }
             }
         ]
@@ -120,21 +208,21 @@ const LAYOUT_TEMPLATES: Record<string, LayoutTemplate> = {
                 id: 'sources',
                 title: 'VERİ KAYNAKLARI',
                 content: 'Başlangıçtan Ocak 2024\'e kadar MEDLINE, Embase ve Cochrane Merkezi Kontrollü Denemeler Kaydı.',
-                icon: 'database',
+                icon: 'folder_open', // Veri kaynakları için
                 rect: { x: 140, y: 160, w: 320, h: 500 }
             },
             {
                 id: 'methods',
                 title: 'ÇALIŞMA SEÇİMİ',
                 content: 'Pediatrik astım hastalarında immünoterapiyi plasebo ile karşılaştıran randomize klinik çalışmalar.',
-                icon: 'filter_alt',
+                icon: 'filter_list', // Seçim/filtreleme için
                 rect: { x: 480, y: 160, w: 320, h: 500 }
             },
             {
                 id: 'synthesis',
                 title: 'VERİ SENTEZİ',
                 content: '64 çalışma (N=4500). Subkutan immünoterapi astım semptomlarını önemli ölçüde azalttı (SMD -0.45; %95 GA -0.6 ila -0.3).',
-                icon: 'analytics',
+                icon: 'query_stats', // Sentez/analiz için
                 statistics: 'SMD -0.45',
                 rect: { x: 820, y: 160, w: 320, h: 500 }
             }
@@ -149,7 +237,7 @@ const LAYOUT_TEMPLATES: Record<string, LayoutTemplate> = {
                 id: 'baseline',
                 title: 'BAŞLANGIÇ (Yıl 0)',
                 content: 'KVH olmayan 1500 katılımcı. Ortalama yaş 45 yıl. %50 Kadın.',
-                icon: 'groups',
+                icon: 'flag', // Başlangıç noktası için
                 rect: { x: 140, y: 265, w: 320, h: 320 }, // Centered Vertically in 530px space (105px margin top/bottom relative to safe area)
                 layout: 'left'
             },
@@ -157,7 +245,7 @@ const LAYOUT_TEMPLATES: Record<string, LayoutTemplate> = {
                 id: 'followup',
                 title: 'TAKİP (Yıl 5)',
                 content: 'Kan basıncı, lipitler ve yaşam tarzı faktörlerinin değerlendirilmesi.',
-                icon: 'monitor_heart',
+                icon: 'monitor_heart', // Kalp monitörü için
                 rect: { x: 480, y: 265, w: 320, h: 320 },
                 layout: 'left'
             },
@@ -165,6 +253,7 @@ const LAYOUT_TEMPLATES: Record<string, LayoutTemplate> = {
                 id: 'outcome',
                 title: 'SONUÇ (Yıl 10)',
                 content: 'Erken hipertansiyon başlangıcı ile ilişkili yüksek risk skoru (HR 1.5).',
+                icon: 'clinical_notes', // Sonuç/rapor için
                 statistics: 'HR 1.5',
                 rect: { x: 820, y: 265, w: 320, h: 320 },
                 layout: 'left'
@@ -180,7 +269,7 @@ const LAYOUT_TEMPLATES: Record<string, LayoutTemplate> = {
                 id: 'group-a',
                 title: 'GRUP A (Yeni İlaç)',
                 content: 'N=500. 10mg günlük dozda yeni inhibitör aldı.',
-                icon: 'medication',
+                icon: 'pill', // İlaç için
                 rect: { x: 160, y: 160, w: 460, h: 240 },
                 layout: 'left'
             },
@@ -188,7 +277,7 @@ const LAYOUT_TEMPLATES: Record<string, LayoutTemplate> = {
                 id: 'group-b',
                 title: 'GRUP B (Standart Bakım)',
                 content: 'N=500. Standart ACE inhibitörü tedavisi aldı.',
-                icon: 'healing',
+                icon: 'vaccines', // Standart tedavi için
                 rect: { x: 660, y: 160, w: 460, h: 240 },
                 layout: 'left'
             },
@@ -196,6 +285,7 @@ const LAYOUT_TEMPLATES: Record<string, LayoutTemplate> = {
                 id: 'result-a',
                 title: 'SONUÇLAR GRUP A',
                 content: 'Ortalama SBP düşüşü: 15 mmHg. Advers olaylar: %5.',
+                icon: 'trending_down', // Pozitif sonuç için
                 chartData: [{label: 'Başlangıç', value: 140}, {label: 'Bitiş', value: 125}],
                 rect: { x: 160, y: 420, w: 460, h: 240 },
                 layout: 'right'
@@ -204,6 +294,7 @@ const LAYOUT_TEMPLATES: Record<string, LayoutTemplate> = {
                 id: 'result-b',
                 title: 'SONUÇLAR GRUP B',
                 content: 'Ortalama SBP düşüşü: 12 mmHg. Advers olaylar: %8.',
+                icon: 'show_chart', // Karşılaştırma için
                 chartData: [{label: 'Başlangıç', value: 140}, {label: 'Bitiş', value: 128}],
                 rect: { x: 660, y: 420, w: 460, h: 240 },
                 layout: 'right'
@@ -219,35 +310,35 @@ const LAYOUT_TEMPLATES: Record<string, LayoutTemplate> = {
                 id: 'center',
                 title: 'MERKEZ',
                 content: 'Sürecin ana odak noktası veya döngünün kalbi.',
-                icon: 'hub',
+                icon: 'workspace_premium', // Merkezi odak için
                 rect: { x: 500, y: 285, w: 280, h: 280 } // Center Square
             },
             {
                 id: 'step1',
                 title: 'ADIM 1',
                 content: 'Hazırlık.',
-                icon: 'assignment',
+                icon: 'list_alt', // Planlama/hazırlık için
                 rect: { x: 160, y: 170, w: 280, h: 180 } // Top Left
             },
              {
                 id: 'step2',
                 title: 'ADIM 2',
                 content: 'Uygulama.',
-                icon: 'build',
+                icon: 'construction', // Uygulama/inşa için
                 rect: { x: 840, y: 170, w: 280, h: 180 } // Top Right
             },
              {
                 id: 'step3',
                 title: 'ADIM 3',
                 content: 'Analiz.',
-                icon: 'analytics',
+                icon: 'insights', // Analiz/değerlendirme için
                 rect: { x: 840, y: 500, w: 280, h: 180 } // Bottom Right
             },
              {
                 id: 'step4',
                 title: 'ADIM 4',
                 content: 'İterasyon.',
-                icon: 'update',
+                icon: 'autorenew', // Döngü/tekrar için
                 rect: { x: 160, y: 500, w: 280, h: 180 } // Bottom Left
             }
         ]
@@ -260,7 +351,7 @@ const LAYOUT_TEMPLATES: Record<string, LayoutTemplate> = {
                 id: 'main',
                 title: 'TASARLAMAYA BAŞLA',
                 content: 'Bu bölümü düzenlemek veya araç çubuğunu kullanarak yeni öğeler eklemek için buraya tıklayın.',
-                icon: 'edit_square',
+                icon: 'draw', // Tasarım/çizim için
                 rect: { x: 140, y: 170, w: 1000, h: 500 }
             }
         ]
@@ -273,9 +364,10 @@ interface SectionCardProps {
     headerColor: string;
     onSectionClick: (id: string) => void;
     onUpdateRect: (id: string, rect: { x: number; y: number; w: number; h: number }) => void;
+    onUpdateSection: (section: WorkspaceSection) => void;
 }
 
-const SectionCard: React.FC<SectionCardProps> = ({ section, isSelected, headerColor, onSectionClick, onUpdateRect }) => {
+const SectionCard: React.FC<SectionCardProps> = ({ section, isSelected, headerColor, onSectionClick, onUpdateRect, onUpdateSection }) => {
     const scale = section.imageScale || 1;
     const textScale = section.textScale || 1;
     const { x, y, w, h } = section.rect;
@@ -283,6 +375,7 @@ const SectionCard: React.FC<SectionCardProps> = ({ section, isSelected, headerCo
     const isHorizontal = layout === 'left' || layout === 'right';
     const isImageFirst = layout === 'top' || layout === 'left';
     const isUrlIcon = section.icon && (section.icon.startsWith('http') || section.icon.startsWith('data:'));
+    const [isDraggingIcon, setIsDraggingIcon] = React.useState(false);
 
     const handleMouseDown = (e: React.MouseEvent) => {
         e.preventDefault(); 
@@ -333,10 +426,40 @@ const SectionCard: React.FC<SectionCardProps> = ({ section, isSelected, headerCo
         <div onMouseDown={(e) => handleResize(e, type)} className={`absolute w-4 h-4 bg-white border-2 border-[#8B5CF6] rounded-full z-50 ${cursor} ${position} shadow-md hover:scale-125 transition-transform`} />
     );
 
+    const handleIconDrag = (e: React.MouseEvent) => {
+        if (!section.icon || section.chartData) return;
+        e.stopPropagation();
+        setIsDraggingIcon(true);
+        const visualArea = (e.currentTarget as HTMLElement).parentElement;
+        if (!visualArea) return;
+        const rect = visualArea.getBoundingClientRect();
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const currentPos = section.iconPosition || { x: 50, y: 30 };
+        
+        const onMouseMove = (moveEvent: MouseEvent) => {
+            const dx = ((moveEvent.clientX - startX) / rect.width) * 100;
+            const dy = ((moveEvent.clientY - startY) / rect.height) * 100;
+            const newX = Math.max(0, Math.min(100, currentPos.x + dx));
+            const newY = Math.max(0, Math.min(100, currentPos.y + dy));
+            onUpdateSection({ ...section, iconPosition: { x: newX, y: newY } });
+        };
+        
+        const onMouseUp = () => {
+            setIsDraggingIcon(false);
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+        
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
     const VisualContent = () => {
         const isHealthIcon = section.icon && section.icon.startsWith('healthicon:');
         const healthIconName = isHealthIcon ? section.icon.replace('healthicon:', '') as HealthIconName : null;
         const HealthIconComponent = healthIconName ? HealthIcons[healthIconName] : null;
+        const iconPos = section.iconPosition || { x: 50, y: 30 };
         
         return (
         <>
@@ -350,14 +473,25 @@ const SectionCard: React.FC<SectionCardProps> = ({ section, isSelected, headerCo
                 ))}
                 </div>
             ) : section.icon ? (
-                <div className={`flex items-center justify-center min-h-[40px] overflow-hidden ${isHorizontal ? 'w-full h-full' : 'flex-1'}`}>
-                {isHealthIcon && HealthIconComponent ? (
-                    <HealthIconComponent style={{ width: `${60 * scale}px`, height: `${60 * scale}px` }} className="text-gray-600 opacity-80" />
-                ) : isUrlIcon ? (
-                        <img src={section.icon} alt={section.title} className="object-contain opacity-80 transition-transform origin-center" style={{ transform: `scale(${scale})`, maxHeight: '100%', maxWidth: '100%' }} />
-                ) : (
-                    <span className="material-symbols-outlined text-6xl text-gray-600 opacity-80" style={{ transform: `scale(${scale})` }}>{section.icon}</span>
-                )}
+                <div className={`relative min-h-[40px] overflow-hidden ${isHorizontal ? 'w-full h-full' : 'flex-1'}`}>
+                    <div 
+                        onMouseDown={handleIconDrag}
+                        className={`absolute ${isDraggingIcon ? 'cursor-grabbing' : 'cursor-grab'} pointer-events-auto`}
+                        style={{ 
+                            left: `${iconPos.x}%`, 
+                            top: `${iconPos.y}%`, 
+                            transform: 'translate(-50%, -50%)',
+                            zIndex: 10
+                        }}
+                    >
+                        {isHealthIcon && HealthIconComponent ? (
+                            <HealthIconComponent style={{ width: `${60 * scale}px`, height: `${60 * scale}px` }} className="text-gray-600 opacity-80" />
+                        ) : isUrlIcon ? (
+                            <img src={section.icon} alt={section.title} className="object-contain opacity-80" style={{ transform: `scale(${scale})`, maxHeight: '120px', maxWidth: '120px' }} />
+                        ) : (
+                            <span className="material-symbols-outlined text-6xl text-gray-600 opacity-80" style={{ transform: `scale(${scale})` }}>{section.icon}</span>
+                        )}
+                    </div>
                 </div>
             ) : null}
             {!section.content && !section.chartData && !section.icon && (
@@ -441,22 +575,45 @@ const EditPanel: React.FC<EditPanelProps> = ({
     isOpen, section, onClose, onSave, onPreviewUpdate, onOpenIconLibrary, documentSettings 
 }) => {
     const [isPolishing, setIsPolishing] = useState(false);
+    const [localSection, setLocalSection] = useState(section);
+    
+    useEffect(() => {
+        setLocalSection(section);
+    }, [section]);
+    
     if (!isOpen) return null;
     const handleMagicPolish = async () => { 
-        if (!section || !section.content) return;
+        if (!localSection || !localSection.content) return;
         setIsPolishing(true);
         try {
-            const polished = await polishText(section.content, "Summarize this text for a graphical abstract section. Keep it concise (under 30 words) and scientific.");
-            onPreviewUpdate({ ...section, content: polished });
+            const polished = await polishText(localSection.content, "Summarize this text for a graphical abstract section. Keep it concise (under 30 words) and scientific.");
+            const updated = { ...localSection, content: polished };
+            setLocalSection(updated);
+            onPreviewUpdate(updated);
         } catch (e) {
             console.error(e);
         } finally {
             setIsPolishing(false);
         }
     };
+    
+    const handleChange = (field: keyof WorkspaceSection, value: any) => {
+        if (!localSection) return;
+        const updated = { ...localSection, [field]: value };
+        setLocalSection(updated);
+        onPreviewUpdate(updated);
+    };
+    
+    const handleSave = () => {
+        if (localSection) {
+            onSave(localSection);
+        }
+    };
+    
     const updateLayout = (newLayout: SectionLayout) => { 
-        if(section) {
-            const updated = { ...section, layout: newLayout };
+        if(localSection) {
+            const updated = { ...localSection, layout: newLayout };
+            setLocalSection(updated);
             onPreviewUpdate(updated);
             onSave(updated);
         }
@@ -475,15 +632,17 @@ const EditPanel: React.FC<EditPanelProps> = ({
              </div>
         );
     }
+    if (!localSection) return null;
+    
     return (
         <div className="flex flex-col h-full bg-white">
             <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center"><h3 className="font-bold text-neutral-text-dark">Bölüm Düzenle</h3><button onClick={onClose} className="text-gray-400 hover:text-gray-700"><span className="material-symbols-outlined">close</span></button></div>
             <div className="p-4 flex flex-col gap-6 overflow-y-auto flex-1">
-                 <div className="flex flex-col gap-2"><label className="text-xs font-bold text-gray-500 uppercase">Başlık</label><input type="text" value={section.title} onChange={(e) => onPreviewUpdate({...section, title: e.target.value})} onBlur={() => onSave(section)} className="w-full rounded-lg border-gray-300 text-sm p-2 font-bold focus:ring-[#8B5CF6] focus:border-[#8B5CF6]" /></div>
-                 <div className="flex flex-col gap-2"><div className="flex justify-between items-center"><label className="text-xs font-bold text-gray-500 uppercase">İçerik</label><button onClick={handleMagicPolish} disabled={isPolishing} className="text-[10px] flex items-center gap-1 text-[#8B5CF6] font-bold hover:bg-purple-50 px-2 py-1 rounded"><span className="material-symbols-outlined text-sm">auto_awesome</span>{isPolishing ? 'İyileştiriliyor...' : 'AI ile Yaz'}</button></div><textarea value={section.content} onChange={(e) => onPreviewUpdate({...section, content: e.target.value})} onBlur={() => onSave(section)} className="w-full rounded-lg border-gray-300 text-sm p-2 focus:ring-[#8B5CF6] focus:border-[#8B5CF6] min-h-[100px]" /></div>
-                 <div className="flex flex-col gap-2"><label className="text-xs font-bold text-gray-500 uppercase">Görsel</label>{section.chartData ? (<div className="p-3 bg-gray-50 rounded-lg border border-gray-200"><p className="text-xs font-bold mb-2">Grafik Verileri</p>{section.chartData.map((d, i) => (<div key={i} className="flex gap-2 mb-2 items-center"><input className="w-1/2 text-xs p-1 border rounded" value={d.label} onChange={(e) => { const newData = [...section.chartData!]; newData[i].label = e.target.value; onPreviewUpdate({...section, chartData: newData}); }} onBlur={() => onSave(section)} /><input className="w-1/2 text-xs p-1 border rounded" type="number" value={d.value} onChange={(e) => { const newData = [...section.chartData!]; newData[i].value = Number(e.target.value); onPreviewUpdate({...section, chartData: newData}); }} onBlur={() => onSave(section)} /></div>))}</div>) : (<div className="flex items-center gap-4"><div onClick={onOpenIconLibrary} className="size-16 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-[#8B5CF6] hover:bg-purple-50 transition-colors">{section.icon ? (section.icon.startsWith('healthicon:') ? (() => { const iconName = section.icon.replace('healthicon:', '') as HealthIconName; const IconComponent = HealthIcons[iconName]; return IconComponent ? <IconComponent style={{ width: '48px', height: '48px' }} className="text-gray-600" /> : <span className="material-symbols-outlined text-3xl text-gray-600">image</span>; })() : section.icon.startsWith('http') || section.icon.startsWith('data:') ? (<img src={section.icon} className="w-full h-full object-contain p-1" alt="" />) : (<span className="material-symbols-outlined text-3xl text-gray-600">{section.icon}</span>)) : (<span className="material-symbols-outlined text-gray-400">add_photo_alternate</span>)}</div><button onClick={onOpenIconLibrary} className="text-sm font-bold text-[#8B5CF6] hover:underline">Simge/Resim Değiştir</button></div>)}</div>
-                 <div className="flex flex-col gap-2 pt-2 border-t border-gray-100"><label className="text-xs font-bold text-gray-500 uppercase">İçerik Düzeni</label><div className="flex gap-2"><button onClick={() => updateLayout('top')} className={`flex-1 p-2 rounded-lg border flex items-center justify-center transition-colors hover:bg-gray-50 ${section.layout === 'top' ? 'border-[#8B5CF6] bg-purple-50 text-[#8B5CF6]' : 'border-gray-200 text-gray-400'}`} title="Görsel Üstte"><span className="material-symbols-outlined">vertical_align_top</span></button><button onClick={() => updateLayout('bottom')} className={`flex-1 p-2 rounded-lg border flex items-center justify-center transition-colors hover:bg-gray-50 ${(section.layout === 'bottom' || !section.layout) ? 'border-[#8B5CF6] bg-purple-50 text-[#8B5CF6]' : 'border-gray-200 text-gray-400'}`} title="Görsel Altta"><span className="material-symbols-outlined">vertical_align_bottom</span></button><button onClick={() => updateLayout('left')} className={`flex-1 p-2 rounded-lg border flex items-center justify-center transition-colors hover:bg-gray-50 ${section.layout === 'left' ? 'border-[#8B5CF6] bg-purple-50 text-[#8B5CF6]' : 'border-gray-200 text-gray-400'}`} title="Görsel Solda"><span className="material-symbols-outlined">align_horizontal_left</span></button><button onClick={() => updateLayout('right')} className={`flex-1 p-2 rounded-lg border flex items-center justify-center transition-colors hover:bg-gray-50 ${section.layout === 'right' ? 'border-[#8B5CF6] bg-purple-50 text-[#8B5CF6]' : 'border-gray-200 text-gray-400'}`} title="Görsel Sağda"><span className="material-symbols-outlined">align_horizontal_right</span></button></div></div>
-                 <div className="flex flex-col gap-4 pt-2 border-t border-gray-100"><div><div className="flex justify-between mb-1"><label className="text-xs font-bold text-gray-500 uppercase">Görsel Boyutu</label><span className="text-xs text-gray-400">{Math.round((section.imageScale || 1) * 100)}%</span></div><input type="range" min="0.5" max="2" step="0.1" value={section.imageScale || 1} onChange={(e) => onPreviewUpdate({...section, imageScale: parseFloat(e.target.value)})} onMouseUp={() => onSave(section)} className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#8B5CF6]" /></div><div><div className="flex justify-between mb-1"><label className="text-xs font-bold text-gray-500 uppercase">Metin Boyutu</label><span className="text-xs text-gray-400">{Math.round((section.textScale || 1) * 100)}%</span></div><input type="range" min="0.7" max="1.5" step="0.1" value={section.textScale || 1} onChange={(e) => onPreviewUpdate({...section, textScale: parseFloat(e.target.value)})} onMouseUp={() => onSave(section)} className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#8B5CF6]" /></div></div>
+                 <div className="flex flex-col gap-2"><label className="text-xs font-bold text-gray-500 uppercase">Başlık</label><input type="text" value={localSection.title} onChange={(e) => handleChange('title', e.target.value)} onBlur={handleSave} className="w-full rounded-lg border-gray-300 text-sm p-2 font-bold focus:ring-[#8B5CF6] focus:border-[#8B5CF6]" /></div>
+                 <div className="flex flex-col gap-2"><div className="flex justify-between items-center"><label className="text-xs font-bold text-gray-500 uppercase">İçerik</label><button onClick={handleMagicPolish} disabled={isPolishing} className="text-[10px] flex items-center gap-1 text-[#8B5CF6] font-bold hover:bg-purple-50 px-2 py-1 rounded"><span className="material-symbols-outlined text-sm">auto_awesome</span>{isPolishing ? 'İyileştiriliyor...' : 'AI ile Yaz'}</button></div><textarea value={localSection.content} onChange={(e) => handleChange('content', e.target.value)} onBlur={handleSave} className="w-full rounded-lg border-gray-300 text-sm p-2 focus:ring-[#8B5CF6] focus:border-[#8B5CF6] min-h-[100px]" /></div>
+                 <div className="flex flex-col gap-2"><label className="text-xs font-bold text-gray-500 uppercase">Görsel</label>{localSection.chartData ? (<div className="p-3 bg-gray-50 rounded-lg border border-gray-200"><p className="text-xs font-bold mb-2">Grafik Verileri</p>{localSection.chartData.map((d, i) => (<div key={i} className="flex gap-2 mb-2 items-center"><input className="w-1/2 text-xs p-1 border rounded" value={d.label} onChange={(e) => { const newData = [...localSection.chartData!]; newData[i].label = e.target.value; handleChange('chartData', newData); }} onBlur={handleSave} /><input className="w-1/2 text-xs p-1 border rounded" type="number" value={d.value} onChange={(e) => { const newData = [...localSection.chartData!]; newData[i].value = Number(e.target.value); handleChange('chartData', newData); }} onBlur={handleSave} /></div>))}</div>) : (<div className="flex items-center gap-4"><div onClick={onOpenIconLibrary} className="size-16 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-[#8B5CF6] hover:bg-purple-50 transition-colors">{localSection.icon ? (localSection.icon.startsWith('healthicon:') ? (() => { const iconName = localSection.icon.replace('healthicon:', '') as HealthIconName; const IconComponent = HealthIcons[iconName]; return IconComponent ? <IconComponent style={{ width: '48px', height: '48px' }} className="text-gray-600" /> : <span className="material-symbols-outlined text-3xl text-gray-600">image</span>; })() : localSection.icon.startsWith('http') || localSection.icon.startsWith('data:') ? (<img src={localSection.icon} className="w-full h-full object-contain p-1" alt="" />) : (<span className="material-symbols-outlined text-3xl text-gray-600">{localSection.icon}</span>)) : (<span className="material-symbols-outlined text-gray-400">add_photo_alternate</span>)}</div><button onClick={onOpenIconLibrary} className="text-sm font-bold text-[#8B5CF6] hover:underline">Simge/Resim Değiştir</button></div>)}</div>
+                 <div className="flex flex-col gap-2 pt-2 border-t border-gray-100"><label className="text-xs font-bold text-gray-500 uppercase">İçerik Düzeni</label><div className="flex gap-2"><button onClick={() => updateLayout('top')} className={`flex-1 p-2 rounded-lg border flex items-center justify-center transition-colors hover:bg-gray-50 ${localSection.layout === 'top' ? 'border-[#8B5CF6] bg-purple-50 text-[#8B5CF6]' : 'border-gray-200 text-gray-400'}`} title="Görsel Üstte"><span className="material-symbols-outlined">vertical_align_top</span></button><button onClick={() => updateLayout('bottom')} className={`flex-1 p-2 rounded-lg border flex items-center justify-center transition-colors hover:bg-gray-50 ${(localSection.layout === 'bottom' || !localSection.layout) ? 'border-[#8B5CF6] bg-purple-50 text-[#8B5CF6]' : 'border-gray-200 text-gray-400'}`} title="Görsel Altta"><span className="material-symbols-outlined">vertical_align_bottom</span></button><button onClick={() => updateLayout('left')} className={`flex-1 p-2 rounded-lg border flex items-center justify-center transition-colors hover:bg-gray-50 ${localSection.layout === 'left' ? 'border-[#8B5CF6] bg-purple-50 text-[#8B5CF6]' : 'border-gray-200 text-gray-400'}`} title="Görsel Solda"><span className="material-symbols-outlined">align_horizontal_left</span></button><button onClick={() => updateLayout('right')} className={`flex-1 p-2 rounded-lg border flex items-center justify-center transition-colors hover:bg-gray-50 ${localSection.layout === 'right' ? 'border-[#8B5CF6] bg-purple-50 text-[#8B5CF6]' : 'border-gray-200 text-gray-400'}`} title="Görsel Sağda"><span className="material-symbols-outlined">align_horizontal_right</span></button></div></div>
+                 <div className="flex flex-col gap-4 pt-2 border-t border-gray-100"><div><div className="flex justify-between mb-1"><label className="text-xs font-bold text-gray-500 uppercase">Görsel Boyutu</label><span className="text-xs text-gray-400">{Math.round((localSection.imageScale || 1) * 100)}%</span></div><input type="range" min="0.5" max="2" step="0.1" value={localSection.imageScale || 1} onChange={(e) => handleChange('imageScale', parseFloat(e.target.value))} onMouseUp={handleSave} className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#8B5CF6]" /></div><div><div className="flex justify-between mb-1"><label className="text-xs font-bold text-gray-500 uppercase">Metin Boyutu</label><span className="text-xs text-gray-400">{Math.round((localSection.textScale || 1) * 100)}%</span></div><input type="range" min="0.7" max="1.5" step="0.1" value={localSection.textScale || 1} onChange={(e) => handleChange('textScale', parseFloat(e.target.value))} onMouseUp={handleSave} className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#8B5CF6]" /></div></div>
             </div>
         </div>
     );
@@ -512,11 +671,15 @@ const Workspace: React.FC<WorkspaceProps> = ({ onBack, layoutId = 'clinical-tria
               // Smart mapping to ensure all data is inserted
               analyzedData.sections.forEach((apiSection, index) => {
                   if (index < initialSections.length) {
+                      // Use icon name instead of URL to avoid broken image links
+                      const iconName = apiSection.recommendedIcons?.[0]?.name;
+                      const mappedIcon = iconName ? mapIconNameToMaterialSymbol(iconName) : initialSections[index].icon;
+                      
                       initialSections[index] = {
                           ...initialSections[index],
                           title: apiSection.title ? apiSection.title.toUpperCase() : initialSections[index].title,
                           content: apiSection.description,
-                          icon: apiSection.recommendedIcons?.[0]?.url || initialSections[index].icon
+                          icon: mappedIcon
                       };
                   } else {
                       // Overflow: Append to the last section
@@ -571,11 +734,15 @@ const Workspace: React.FC<WorkspaceProps> = ({ onBack, layoutId = 'clinical-tria
               
               analyzedData.sections.forEach((apiSection, index) => {
                   if (index < nextSections.length) {
+                      // Use icon name instead of URL to avoid broken image links
+                      const iconName = apiSection.recommendedIcons?.[0]?.name;
+                      const mappedIcon = iconName ? mapIconNameToMaterialSymbol(iconName) : nextSections[index].icon;
+                      
                       nextSections[index] = {
                           ...nextSections[index],
                           title: apiSection.title ? apiSection.title.toUpperCase() : nextSections[index].title,
                           content: apiSection.description,
-                          icon: apiSection.recommendedIcons?.[0]?.url || nextSections[index].icon
+                          icon: mappedIcon
                       };
                   } else {
                        const lastIndex = nextSections.length - 1;
@@ -860,7 +1027,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ onBack, layoutId = 'clinical-tria
                       </h1>
                   </div>
                   <div className="absolute inset-0 pointer-events-none">
-                      {sections.map(section => (<SectionCard key={section.id} section={section} isSelected={selectedSectionId === section.id} headerColor={headerColor} onSectionClick={handleSectionClick} onUpdateRect={handleRectUpdate} />))}
+                      {sections.map(section => (<SectionCard key={section.id} section={section} isSelected={selectedSectionId === section.id} headerColor={headerColor} onSectionClick={handleSectionClick} onUpdateRect={handleRectUpdate} onUpdateSection={updateSection} />))}
                   </div>
                   <div className="absolute bottom-0 left-0 right-0 h-[30px] border-t border-gray-100 flex items-center justify-start px-8 bg-gray-50"><span className="text-[10px] text-gray-400">{citation}</span></div>
               </div>

@@ -26,3 +26,69 @@ export const extractArticleData = async (url: string): Promise<ExtractedData> =>
     throw error;
   }
 };
+
+export const polishText = async (
+  originalText: string,
+  instruction: string
+): Promise<string> => {
+  try {
+    const response = await fetch('https://graphic-abstract-api.vercel.app/api/polish', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        text: originalText,
+        instruction: instruction
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    
+    if (!result.success || !result.polishedText) {
+        throw new Error(result.message || 'Text polishing failed');
+    }
+
+    return result.polishedText;
+  } catch (error) {
+    console.error("Text polish error:", error);
+    return originalText; // Return original text on error
+  }
+};
+
+export const sendChatMessage = async (
+  history: { role: string; text: string }[],
+  message: string
+): Promise<string> => {
+  try {
+    const response = await fetch('https://graphic-abstract-api.vercel.app/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        history: history,
+        message: message
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    
+    if (!result.success || !result.response) {
+        throw new Error(result.message || 'Chat failed');
+    }
+
+    return result.response;
+  } catch (error) {
+    console.error("Chat error:", error);
+    throw error;
+  }
+};

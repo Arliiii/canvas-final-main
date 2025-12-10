@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { sendChatMessage } from '../services/geminiService';
+import { sendChatMessage } from '../services/apiService';
 import { ChatMessage } from '../types';
 
 const ChatBot: React.FC = () => {
@@ -28,10 +28,10 @@ const ChatBot: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Format history for Gemini API
+      // Format history for API
       const history = messages.map(m => ({
         role: m.role,
-        parts: [{ text: m.text }]
+        text: m.text
       }));
 
       const responseText = await sendChatMessage(history, userMsg.text);
